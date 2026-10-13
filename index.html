@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数字员工看板 V2</title>
+<script src="https://cdn.staticfile.org/echarts/5.5.0/echarts.min.js"></script>
+<style>
+:root{
+  --bg:#0b1220;
+  --panel:#131c31;
+  --panel2:#0f1729;
+  --border:#1f2b45;
+  --primary:#00d4ff;
+  --accent:#7c5cff;
+  --ok:#00e396;
+  --warn:#ffb547;
+  --bad:#ff5470;
+  --text:#e6edf7;
+  --text2:#8aa0c0;
+  --text3:#5b7094;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:"PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;min-width:1180px}
+.ghost{position:fixed;inset:0;background:#0b1220;color:#8aa0c0;display:flex;align-items:center;justify-content:center;z-index:999;font-size:16px;display:none}
+
+/* header */
+.header{height:64px;display:flex;align-items:center;padding:0 22px;background:linear-gradient(90deg,rgba(0,212,255,.08),transparent 40%);border-bottom:1px solid var(--border)}
+.logo{font-size:20px;font-weight:700;letter-spacing:1px}
+.logo b{color:var(--primary)}
+.logo .tag{margin-left:10px;font-size:11px;color:var(--text3);border:1px solid var(--border);padding:2px 8px;border-radius:4px;font-weight:400}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:18px;font-size:13px;color:var(--text2)}
+.header-right .live{color:var(--ok)}
+.header-right .now{font-family:Consolas,monospace;color:var(--primary)}
+
+/* nav */
+.nav{display:flex;gap:6px;padding:12px 22px;border-bottom:1px solid var(--border);background:var(--panel2);flex-wrap:nowrap;overflow-x:auto}
+.nav-item{padding:8px 16px;border-radius:8px;color:var(--text2);cursor:pointer;white-space:nowrap;transition:.18s;font-size:14px}
+.nav-item:hover{background:rgba(0,212,255,.08);color:var(--text)}
+.nav-item.active{background:linear-gradient(135deg,rgba(0,212,255,.18),rgba(124,92,255,.18));color:#fff;font-weight:600}
+.tab-badge{display:inline-block;min-width:16px;padding:0 5px;margin-left:4px;border-radius:8px;background:var(--bad);color:#fff;font-size:11px;text-align:center}
+
+/* layout */
+.page{display:none;padding:18px 22px 40px}
+.page.active{display:block}
+.row{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.row > *{flex:1;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative}
+.panel-title{font-size:15px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:"";width:4px;height:14px;border-radius:2px;background:linear-gradient(180deg,var(--primary),var(--accent))}
+.panel-title .seg{margin-left:auto}
+.panel-sub{font-size:12px;color:var(--text3);margin-bottom:12px}
+.chart{height:300px;width:100%}
+.chart-sm{height:220px;width:100%}
+.chart-lg{height:340px;width:100%}
+
+/* filter bar */
+.filter-bar{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:16px;flex-wrap:wrap}
+.fb-lab{font-size:13px;color:var(--text2);white-space:nowrap}
+.fb-note{font-size:11px;color:var(--text3);margin-left:auto}
+
+/* seg dropdown control */
+.seg{position:relative;display:inline-flex;align-items:center;background:none;border:none;padding:0;gap:0}
+.seg{visibility:hidden}
+.seg.ready{visibility:visible}
+.seg-trigger{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;font-size:11px;color:var(--text);background:rgba(9,14,28,.9);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;transition:.15s;white-space:nowrap;font-family:inherit;line-height:1.4}
+.seg-trigger:hover{border-color:rgba(0,212,255,.45);color:#fff}
+.seg-trigger .seg-caret{font-size:9px;color:var(--text3);transform:rotate(90deg);transition:.18s}
+.seg.open .seg-trigger{border-color:rgba(0,212,255,.55);box-shadow:0 0 0 3px rgba(0,212,255,.10)}
+.seg.open .seg-trigger .seg-caret{transform:rotate(-90deg);color:var(--primary)}
+.seg-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:100%;max-width:220px;background:#0d1526;border:1px solid var(--border);border-radius:10px;padding:4px;box-shadow:0 16px 40px rgba(0,0,0,.6);z-index:120;flex-direction:column;gap:2px}
+.seg.open .seg-menu{display:flex}
+.seg-menu .seg-btn{padding:6px 10px;font-size:12px;text-align:left;border-radius:6px;white-space:nowrap}
+.seg-menu .seg-btn:hover{color:var(--text);background:rgba(0,212,255,.08)}
+.seg-menu .seg-btn.active{background:linear-gradient(135deg,rgba(0,212,255,.22),rgba(124,92,255,.22));color:#fff;font-weight:600}
+.btn-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;font-size:11px;color:var(--text);background:rgba(9,14,28,.9);border:1px solid var(--border);border-radius:8px;cursor:pointer;user-select:none;transition:.15s;white-space:nowrap;font-family:inherit;line-height:1.4}
+.btn-pill:hover{border-color:rgba(0,212,255,.45);color:#fff}
+.btn-pill .seg-caret{font-size:9px;color:var(--text3);transform:rotate(90deg);transition:.18s}
+.btn-pill:hover .seg-caret{color:var(--primary)}
+
+/* btn */
+.btn{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--primary);background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.35);border-radius:8px;padding:4px 10px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:rgba(0,212,255,.2)}
+.input{background:var(--panel2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;padding:7px 10px;outline:none;min-width:210px;font-family:inherit}
+.input:focus{border-color:rgba(0,212,255,.5)}
+.input::placeholder{color:var(--text3)}
+
+/* KPI */
+.kpi{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative}
+.kpi{background-image:radial-gradient(45px 45px at calc(100% + 15px) -15px,rgba(0,212,255,.12),transparent)}
+.kpi.a{background-image:radial-gradient(45px 45px at calc(100% + 15px) -15px,rgba(124,92,255,.16),transparent)}
+.kpi.o{background-image:radial-gradient(45px 45px at calc(100% + 15px) -15px,rgba(255,181,71,.12),transparent)}
+.kpi .lab{font-size:13px;color:var(--text2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.kpi .num{font-size:30px;font-weight:700;margin:6px 0 2px;font-family:Consolas,"Microsoft YaHei",monospace}
+.kpi .num b{font-size:16px;font-weight:600;margin-left:2px}
+.kpi .d{font-size:12px;color:var(--text3);min-height:16px}
+.kpi .seg{margin-left:auto}
+.up{color:var(--ok)}.down{color:var(--bad)}.w{color:var(--warn)}
+
+/* status dots */
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.dot.g{background:var(--ok)}.dot.r{background:var(--bad)}.dot.y{background:var(--warn)}.dot.b{background:#5b7094}.dot.c{background:var(--primary)}
+
+/* table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--text3);font-weight:500;text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid rgba(31,43,69,.5);color:var(--text2);white-space:nowrap}
+tbody tr:hover td{background:rgba(0,212,255,.04);color:var(--text)}
+th.sortable{cursor:pointer;user-select:none}
+th.sortable:hover{color:var(--text)}
+.sarrow{display:inline-block;margin-left:4px;font-size:10px;color:var(--text3)}
+th.asc .sarrow,th.desc .sarrow{color:var(--primary)}
+tr.selected td{background:rgba(0,212,255,.10)!important;color:var(--text)}
+tr.linked td{background:rgba(124,92,255,.14)!important;color:var(--text);box-shadow:inset 2px 0 0 var(--accent)}
+.badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:12px}
+.b-ok{background:rgba(0,227,150,.12);color:var(--ok)}
+.b-bad{background:rgba(255,84,112,.12);color:var(--bad)}
+.b-warn{background:rgba(255,181,71,.12);color:var(--warn)}
+.b-idle{background:rgba(91,112,148,.15);color:var(--text2)}
+.b-blue{background:rgba(0,212,255,.12);color:var(--primary)}
+.b-purple{background:rgba(124,92,255,.15);color:#a78bfa}
+.link{color:var(--primary);cursor:pointer}
+.link:hover{text-decoration:underline}
+
+.note{font-size:11px;color:var(--warn);margin-left:8px;font-weight:400}
+.mono{font-family:Consolas,monospace}
+.footer{text-align:center;color:var(--text3);font-size:12px;padding:10px 0 30px}
+
+/* light chips for scenario */
+.light{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.scroll-x{overflow-x:auto}
+
+/* modal */
+.modal{position:fixed;inset:0;background:rgba(4,8,18,.72);display:none;align-items:center;justify-content:center;z-index:80;padding:24px}
+.modal.open{display:flex}
+.modal-box{width:min(980px,94vw);max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px 22px;box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.modal-head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.modal-head .panel-title{margin-bottom:0}
+.modal-sub{font-size:12px;color:var(--text3)}
+.modal-close{margin-left:auto;width:26px;height:26px;border-radius:6px;border:1px solid var(--border);color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px}
+.modal-close:hover{background:rgba(255,84,112,.15);color:var(--bad);border-color:rgba(255,84,112,.4)}
+.modal-toolbar{display:flex;align-items:center;gap:12px;margin:14px 0 12px;flex-wrap:wrap}
+.detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;margin-top:14px}
+.detail-grid .it{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:9px 12px}
+.detail-grid .k{font-size:11px;color:var(--text3);margin-bottom:3px}
+.detail-grid .v{font-size:13px;color:var(--text);word-break:break-all}
+</style>
+</head>
+<body>
+
+<!-- fallback when echarts missing -->
+<div class="ghost" id="echartsGhost">未加载到 ECharts，请联网后刷新（本页示例数据需图表库渲染）</div>
+
+<!-- ============ HEADER ============ -->
+<div class="header">
+  <div class="logo"><b>数字员工</b>看板 <span class="tag">xwis 智能体平台 · 全局看板视图</span></div>
+  <div class="header-right">
+    <span class="live">● 实时数据</span>
+    <span class="now" id="clock">--</span>
+  </div>
+</div>
+
+<!-- ============ NAV ============ -->
+<div class="nav">
+  <div class="nav-item active" data-tab="tab-overview">总览</div>
+  <div class="nav-item" data-tab="tab-team">组织看板</div>
+  <div class="nav-item" data-tab="tab-task">任务看板</div>
+  <div class="nav-item" data-tab="tab-skill">能力看板</div>
+  <div class="nav-item" data-tab="tab-auto">定时任务</div>
+  <div class="nav-item" data-tab="tab-biz">业务场景</div>
+  <div class="nav-item" data-tab="tab-res">资源看板</div>
+  <div class="nav-item" data-tab="tab-gov">异常治理 <span class="tab-badge">19</span></div>
+</div>
+
+<!-- ============ 总览 ============ -->
+<div class="page active" id="tab-overview">
+  <div class="filter-bar">
+    <span class="fb-lab">部门维度</span>
+    <div class="seg" data-seg="dept">
+      <span class="seg-btn active" data-v="all">全部部门</span>
+      <span class="seg-btn" data-v="rd">产品研发部</span>
+      <span class="seg-btn" data-v="mkt">市场销售部</span>
+      <span class="seg-btn" data-v="fin">财务部</span>
+      <span class="seg-btn" data-v="adm">综合管理部</span>
+    </div>
+    <span class="fb-note" id="deptNote">展示所选部门的相关指标数据</span>
+  </div>
+
+  <div class="row">
+    <div class="kpi up"><div class="lab">数字员工总数</div><div class="num" id="ovEmp">12<b> 名</b></div><div class="d" id="ovEmpD">本周新增 2 名，涉及 4 个部门、7 个账号</div></div>
+    <div class="kpi"><div class="lab">数字员工活跃率</div><div class="num" id="ovAct">83.3<b>%</b></div><div class="d" id="ovActD">近 30 天有 10 名数字员工执行过任务，占比 83.3%</div></div>
+    <div class="kpi"><div class="lab">今日任务执行量</div><div class="num" id="ovTask">356<b> 次</b></div><div class="d" id="ovTaskD">自动执行 262 次，人工发起 94 次</div></div>
+    <div class="kpi o"><div class="lab">任务成功率</div><div class="num" id="ovRate">94.6<b>%</b></div><div class="d" id="ovRateD">较上一周期上升 1.2%</div></div>
+    <div class="kpi down"><div class="lab">今日异常任务</div><div class="num" id="ovAbn">19<b> 次</b></div><div class="d" id="ovAbnD"><span class="dot r"></span>较昨日增加 6 次</div></div>
+    <div class="kpi a"><div class="lab" title="按所选时间范围统计技能被使用的次数">今日技能调用量</div><div class="num" id="ovCall">1,284<b> 次</b></div><div class="d" id="ovCallD">统计所选时间范围内的技能调用次数</div></div>
+    <div class="kpi"><div class="lab">定时任务启用</div><div class="num" id="ovTimer">18<b>/24</b></div><div class="d" id="ovTimerD">当前执行成功率为 96.1%</div></div>
+    <div class="kpi o"><div class="lab" title="统计当前实际存储用量，可按部门和用户账号查看">存储使用量</div><div class="num" id="ovStore">849<b> MB</b></div><div class="d" id="ovStoreD">总配额 50GB，当前占用约 1.7%</div></div>
+  </div>
+
+  <div class="row">
+    <div class="panel" style="flex:2"><div class="panel-title">近 30 天任务执行趋势</div><div class="chart-lg" id="c_trend"></div></div>
+    <div class="panel"><div class="panel-title">近 30 天任务成功率与异常</div><div class="chart-lg" id="c_rate"></div></div>
+  </div>
+
+  <div class="row">
+    <div class="panel"><div class="panel-title">今日业务场景任务分布</div><div class="chart-sm" id="c_scene"></div></div>
+    <div class="panel"><div class="panel-title">技能使用排行 TOP5</div><div class="chart-sm" id="c_skill"></div></div>
+    <div class="panel"><div class="panel-title">数字员工运行状态</div><div class="chart-sm" id="c_team"></div></div>
+  </div>
+</div>
+
+<!-- ============ 组织看板（原队伍运营） ============ -->
+<div class="page" id="tab-team">
+  <div class="row">
+    <div class="kpi"><div class="lab">部门数</div><div class="num">4<b> 个</b></div><div class="d">按组织架构统计部门数量</div></div>
+    <div class="kpi"><div class="lab">用户账号</div><div class="num">7<b> 个</b></div><div class="d">覆盖 4 个部门，共关联 12 名数字员工</div></div>
+    <div class="kpi"><div class="lab">数字员工总数</div><div class="num">12<b> 名</b></div><div class="d">模板创建 7 名、对话创建 4 名、平台内置 1 名</div></div>
+    <div class="kpi"><div class="lab">人均任务量（近30天）</div><div class="num">29.7<b> 次</b></div><div class="d">最高执行 156 次；部分数字员工近 30 天未执行任务</div></div>
+    <div class="kpi"><div class="lab">人均产物数</div><div class="num">3.4<b> 个</b></div><div class="d">累计产出 41 个成果文件</div></div>
+    <div class="kpi"><div class="lab">平均绑定技能数</div><div class="num">4.2<b> 个</b></div><div class="d">平均每名数字员工绑定 4.2 项技能</div></div>
+    <div class="kpi"><div class="lab">账号平均数字员工数</div><div class="num">1.7<b> 名</b></div><div class="d">按用户账号统计数字员工数量</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">数字员工增长趋势</div><div class="chart-lg" id="c_team_growth"></div></div>
+    <div class="panel"><div class="panel-title">创建方式构成</div><div class="chart-lg" id="c_team_create"></div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">组织与数字员工台账
+      <input class="input" id="teamSearch" placeholder="搜索：数字员工 / 部门 / 用户账号" style="margin-left:auto">
+    </div>
+    
+    <div class="scroll-x">
+    <table id="teamLedger">
+      <thead><tr><th>数字员工</th><th>部门</th><th>用户账号</th><th class="sortable" data-col="3" data-type="text">创建时间<span class="sarrow">⇅</span></th><th>创建方式</th><th class="sortable" data-col="5" data-type="num">累计对话<span class="sarrow">⇅</span></th><th class="sortable" data-col="6" data-type="num">执行任务<span class="sarrow">⇅</span></th><th class="sortable" data-col="7" data-type="num">产物<span class="sarrow">⇅</span></th><th class="sortable" data-col="8" data-type="num">技能数<span class="sarrow">⇅</span></th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td><span class="dot c"></span>xwis-R1</td><td>产品研发部</td><td class="mono">liming@xwis.cn</td><td>2026-01-15</td><td>内置</td><td>156</td><td>231</td><td>12</td><td>5</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>xwis-R1</td><td>市场销售部</td><td class="mono">hongmei@xwis.cn</td><td>2026-05-06</td><td>模板创建</td><td>68</td><td>87</td><td>5</td><td>4</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>xwis-R1</td><td>财务部</td><td class="mono">jinyan@xwis.cn</td><td>2026-06-11</td><td>对话创建</td><td>45</td><td>52</td><td>3</td><td>3</td><td><span class="badge b-warn">低活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>xwis-R1</td><td>综合管理部</td><td class="mono">xuebing@xwis.cn</td><td>2026-07-08</td><td>模板创建</td><td>22</td><td>6</td><td>1</td><td>2</td><td><span class="badge b-idle">新员工</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>噜噜小工</td><td>市场销售部</td><td class="mono">sunqi@xwis.cn</td><td>2026-06-03</td><td>模板创建</td><td>89</td><td>23</td><td>5</td><td>3</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小智 · 数据分析</td><td>产品研发部</td><td class="mono">zhangwei@xwis.cn</td><td>2026-03-02</td><td>模板创建</td><td>124</td><td>98</td><td>9</td><td>6</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小策 · 内容创作</td><td>市场销售部</td><td class="mono">wangfang@xwis.cn</td><td>2026-04-18</td><td>模板创建</td><td>77</td><td>41</td><td>6</td><td>4</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小财 · 财务核查</td><td>财务部</td><td class="mono">chenjing@xwis.cn</td><td>2026-05-11</td><td>对话创建</td><td>52</td><td>35</td><td>4</td><td>4</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小法 · 合同审查</td><td>综合管理部</td><td class="mono">zhaolei@xwis.cn</td><td>2026-05-28</td><td>模板创建</td><td>44</td><td>30</td><td>3</td><td>5</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小云 · 智能客服</td><td>综合管理部</td><td class="mono">sunqi@xwis.cn</td><td>2026-06-09</td><td>模板创建</td><td>66</td><td>3</td><td>1</td><td>3</td><td><span class="badge b-warn">低活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小码 · 研发助理</td><td>产品研发部</td><td class="mono">liming@xwis.cn</td><td>2026-06-20</td><td>对话创建</td><td>38</td><td>12</td><td>2</td><td>6</td><td><span class="badge b-blue">活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小运 · 运营助理</td><td>市场销售部</td><td class="mono">wangfang@xwis.cn</td><td>2026-07-02</td><td>对话创建</td><td>29</td><td>8</td><td>2</td><td>3</td><td><span class="badge b-warn">低活跃</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot c"></span>小文 · 文档秘书</td><td>综合管理部</td><td class="mono">zhaolei@xwis.cn</td><td>2026-07-15</td><td>对话创建</td><td>41</td><td>4</td><td>1</td><td>2</td><td><span class="badge b-idle">新员工</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot b"></span>小研 · 深度调研</td><td>产品研发部</td><td class="mono">zhangwei@xwis.cn</td><td>2026-02-20</td><td>模板创建</td><td>12</td><td>0</td><td>0</td><td>4</td><td><span class="badge b-bad">待治理</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+        <tr><td><span class="dot b"></span>小海 · 销售跟单</td><td>市场销售部</td><td class="mono">liuyang@xwis.cn</td><td>2026-04-03</td><td>对话创建</td><td>5</td><td>0</td><td>0</td><td>3</td><td><span class="badge b-bad">待治理</span></td><td><span class="link cfg-detail">详情</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 任务看板（原任务运营） ============ -->
+<div class="page" id="tab-task">
+  <div class="row">
+    <div class="kpi"><div class="lab">任务执行量<span class="seg" data-seg="taskExec"><span class="seg-btn" data-v="total">总计</span><span class="seg-btn" data-v="year">年</span><span class="seg-btn active" data-v="month">月</span></span></div><div class="num" id="kExec">8,910<b> 次</b></div><div class="d" id="kExecD">近 30 天任务执行日均约 297 次</div></div>
+    <div class="kpi"><div class="lab">任务成功率</div><div class="num">94.6<b>%</b></div><div class="d up">较上一统计周期提升 1.2%</div></div>
+    <div class="kpi down"><div class="lab">异常率</div><div class="num">5.4<b>%</b></div><div class="d">近 30 天执行失败 481 次</div></div>
+    <div class="kpi"><div class="lab">执行来源构成</div><div class="num">72<b>/28</b></div><div class="d">自动执行约占 72%，人工发起约占 28%</div></div>
+    <div class="kpi"><div class="lab">平均执行时长</div><div class="num">42<b> s</b></div><div class="d">平均每次任务耗时 42 秒</div></div>
+    <div class="kpi"><div class="lab">产物产出（近30天）</div><div class="num">18<b> 个</b></div><div class="d">近 30 天产出 18 个成果，平均每次执行约产出 0.6 个</div></div>
+  </div>
+  <div class="row">
+    <div class="panel" style="flex:2"><div class="panel-title">任务执行量与成功率趋势</div><div class="chart-lg" id="c_task_trend"></div></div>
+    <div class="panel"><div class="panel-title">任务来源构成</div><div class="chart-lg" id="c_task_src"></div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">各数字员工执行负载 TOP8</div><div class="chart-sm" id="c_task_load"></div></div>
+    <div class="panel"><div class="panel-title">执行时长分布</div><div class="chart-sm" id="c_task_dur"></div></div>
+  </div>
+</div>
+
+<!-- ============ 能力看板（原能力运营） ============ -->
+<div class="page" id="tab-skill">
+  <div class="row">
+    <div class="kpi"><div class="lab" title="口径：已创建的全部 Skill，包含已创建未分享与已上架">技能总数</div><div class="num">32<b> 个</b></div><div class="d">共 32 项：平台内置 8 项、组织共享 15 项、个人技能 9 项</div></div>
+    <div class="kpi"><div class="lab" title="按所选时间范围统计技能被使用的次数">技能调用量<span class="seg" data-seg="skillCall"><span class="seg-btn active" data-v="total">总计</span><span class="seg-btn" data-v="year">年</span><span class="seg-btn" data-v="month">月</span></span></div><div class="num" id="kCall">712,500<b> 次</b></div><div class="d" id="kCallD">平台累计调用 712,500 次</div></div>
+    <div class="kpi"><div class="lab" title="按所有账号下数字员工与技能的当前绑定关系统计">平均安装数</div><div class="num">4.7<b> 个</b></div><div class="d">按数字员工当前绑定的技能数量统计</div></div>
+    <div class="kpi down"><div class="lab">待审批技能</div><div class="num">2<b> 个</b></div><div class="d">当前有 2 项技能待审批</div></div>
+    <div class="kpi"><div class="lab" title="统计技能安全检查通过比例，重点关注越权及高风险内容">安全评测通过率<span class="seg" data-seg="secEval"><span class="seg-btn active" data-v="total">总计</span><span class="seg-btn" data-v="year">年</span><span class="seg-btn" data-v="month">月</span></span></div><div class="num" id="kSec">99.6<b>%</b></div><div class="d" id="kSecD">累计完成 1,247 项安全检查，其中 1,242 项通过</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">技能调用量 TOP10</div><div class="chart-lg" id="c_skill_call"></div></div>
+    <div class="panel"><div class="panel-title">技能分类构成</div><div class="chart-lg" id="c_skill_cat"></div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">所有技能与正式上架趋势</div><div class="chart-sm" id="c_skill_growth"></div></div>
+    <div class="panel"><div class="panel-title">技能采纳状态清单</div>
+      <table>
+        <thead><tr><th>技能</th><th>类型</th><th>安装数</th><th>状态</th></tr></thead>
+        <tbody>
+          <tr><td>📄 文档分析</td><td>内置</td><td>42</td><td><span class="badge b-ok">活跃</span></td></tr>
+          <tr><td>📊 数据分析</td><td>组织</td><td>38</td><td><span class="badge b-ok">活跃</span></td></tr>
+          <tr><td>🧾 发票识别</td><td>内置</td><td>29</td><td><span class="badge b-ok">活跃</span></td></tr>
+          <tr><td>📋 项目管理</td><td>内置</td><td>24</td><td><span class="badge b-warn">一般</span></td></tr>
+          <tr><td>📅 周报生成器</td><td>个人</td><td>9</td><td><span class="badge b-warn">低活跃</span></td></tr>
+          <tr><td>👥 客户跟进助手</td><td>个人</td><td>0</td><td><span class="badge b-idle">待采用</span></td></tr>
+          <tr><td>🎨 创意设计</td><td>个人</td><td>0</td><td><span class="badge b-idle">待采用</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 定时任务（原自动化运营） ============ -->
+<div class="page" id="tab-auto">
+  <div class="row">
+    <div class="kpi"><div class="lab">定时任务总数</div><div class="num">24<b> 个</b></div><div class="d">本周新增 3 项定时任务</div></div>
+    <div class="kpi"><div class="lab">已启用</div><div class="num">18<b> 个</b></div><div class="d up">共 24 项定时任务，已启用 18 项</div></div>
+    <div class="kpi down"><div class="lab">异常任务</div><div class="num">5<b> 个</b></div><div class="d">近 30 天有任务执行失败记录</div></div>
+    <div class="kpi"><div class="lab">自动执行占比</div><div class="num">72<b>%</b></div><div class="d">全部任务执行中，约 72% 由定时任务触发</div></div>
+    <div class="kpi"><div class="lab" title="口径：定时任务触发的执行次数加权后的成功率">加权成功率</div><div class="num">96.1<b>%</b></div><div class="d up">较上一统计周期提升 0.4%</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">定时任务成功率趋势</div><div class="chart-lg" id="c_auto_rate"></div></div>
+    <div class="panel"><div class="panel-title">调度时段负载画像</div><div class="chart-lg" id="c_auto_sched"></div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">定时任务台账
+      <input class="input" id="ledgerSearch" placeholder="搜索：任务 / 用户账号 / 部门 / 关联员工" style="margin-left:auto">
+    </div>
+    
+    <div class="scroll-x">
+    <table id="ledgerTable">
+      <thead><tr>
+        <th>任务</th>
+        <th>用户账号</th>
+        <th>部门</th>
+        <th>关联员工</th>
+        <th>调度策略</th>
+        <th>模型</th>
+        <th class="sortable" data-col="6" data-type="num">近30天执行<span class="sarrow">⇅</span></th>
+        <th class="sortable" data-col="7" data-type="num">成功率<span class="sarrow">⇅</span></th>
+        <th class="sortable" data-col="8" data-type="status">状态<span class="sarrow">⇅</span></th>
+        <th class="sortable" data-col="9" data-type="text">执行时间<span class="sarrow">⇅</span></th>
+        <th>下次运行</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>每日汇率和天气查询</td><td class="mono">wangfang@xwis.cn</td><td>市场销售部</td><td>小运</td><td>每天 07:00</td><td>qwen3.6-35b-a2b</td><td>30</td><td>96.7%</td><td><span class="badge b-ok">运行中</span></td><td class="mono">2026-10-08 07:00</td><td>明日 07:00</td></tr>
+        <tr><td>政策知识源文件</td><td class="mono">zhangwei@xwis.cn</td><td>产品研发部</td><td>小研</td><td>每天 03:00</td><td>qwen3.6-35b-a2b</td><td>31</td><td>87.1%</td><td><span class="badge b-ok">运行中</span></td><td class="mono">2026-10-08 03:00</td><td>明日 03:00</td></tr>
+        <tr><td>每日数据汇总</td><td class="mono">liming@xwis.cn</td><td>产品研发部</td><td>xwis-R1</td><td>每天 09:00</td><td>DeepSeek-V4 Pro</td><td>30</td><td>100%</td><td><span class="badge b-ok">运行中</span></td><td class="mono">2026-10-08 09:00</td><td>明日 09:00</td></tr>
+        <tr><td>项目日报推送</td><td class="mono">sunqi@xwis.cn</td><td>综合管理部</td><td>噜噜小工</td><td>每天 18:00</td><td>DeepSeek-R1</td><td>28</td><td>92.9%</td><td><span class="badge b-ok">运行中</span></td><td class="mono">2026-10-07 18:00</td><td>今日 18:00</td></tr>
+        <tr><td>周报自动生成</td><td class="mono">liming@xwis.cn</td><td>产品研发部</td><td>xwis-R1</td><td>每周五 17:00</td><td>DeepSeek-V4 Pro</td><td>4</td><td>100%</td><td><span class="badge b-idle">已暂停</span></td><td class="mono">2026-10-02 17:00</td><td>—</td></tr>
+        <tr><td>发票批量识别</td><td class="mono">chenjing@xwis.cn</td><td>财务部</td><td>小财</td><td>每天 22:00</td><td>qwen3.5-7b-a2b</td><td>29</td><td>89.7%</td><td><span class="badge b-warn">部分失败</span></td><td class="mono">2026-10-07 22:00</td><td>今日 22:00</td></tr>
+        <tr><td>竞品价格监控</td><td class="mono">wangfang@xwis.cn</td><td>市场销售部</td><td>小策</td><td>每小时</td><td>GPT-4o</td><td>720</td><td>99.3%</td><td><span class="badge b-ok">运行中</span></td><td class="mono">2026-10-08 09:00</td><td>10:00</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 业务场景（原业务运营） ============ -->
+<div class="page" id="tab-biz">
+  <div class="panel" style="display:flex;align-items:center;justify-content:center;min-height:400px">
+    <div style="text-align:center">
+      <div style="font-size:24px;font-weight:600;color:var(--text3);letter-spacing:2px">待定</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text3)">业务场景页面内容待定，场景体系与整体看板的结合方式进一步确定后再补充</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 资源看板（原资源运营） ============ -->
+<div class="page" id="tab-res">
+  <div class="row">
+    <div class="kpi"><div class="lab" title="统计当前实际存储用量，可按部门和用户账号查看">存储使用量<button class="btn-pill" id="btnStore" title="查看存储台账明细">存储台账<span class="seg-caret">▾</span></button></div><div class="num">849<b> MB</b></div><div class="d">总配额 50GB，当前占用约 1.7%</div></div>
+    <div class="kpi"><div class="lab" title="统计数字员工产出成果的累计数量或所选周期新增数量">产物数量<span class="seg" data-seg="artTrend" data-sync="artTrend"><span class="seg-btn active" data-v="total">累计</span><span class="seg-btn" data-v="inc">增量</span></span></div><div class="num" id="kArt">41<b> 个</b></div><div class="d" id="kArtD">累计产出 41 个成果，近 30 天新增 18 个</div></div>
+    <div class="kpi"><div class="lab" title="统计成果文件及其他资料沉淀到知识库的数量">知识沉淀数量<span class="seg" data-seg="knowledge" data-sync="knowledge"><span class="seg-btn active" data-v="total">累计</span><span class="seg-btn" data-v="inc">增量</span></span></div><div class="num" id="kKnow">268<b> 条</b></div><div class="d" id="kKnowD">累计沉淀 268 条知识内容</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">存储用量统计</div><div class="chart-lg" id="c_res_store"></div></div>
+    <div class="panel"><div class="panel-title">产物产出趋势<span class="seg" data-seg="artTrend" data-sync="artTrend"><span class="seg-btn active" data-v="total">累计</span><span class="seg-btn" data-v="inc">增量</span></span></div><div class="chart-lg" id="c_res_art"></div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">产物类型分布</div><div class="chart-sm" id="c_res_type"></div></div>
+    <div class="panel">
+      <div class="panel-title">知识沉淀趋势
+        <span class="seg" data-seg="knowledge" data-sync="knowledge"><span class="seg-btn active" data-v="total">累计</span><span class="seg-btn" data-v="inc">增量</span></span>
+      </div>
+      
+      <div class="chart-sm" id="c_know"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 异常治理 ============ -->
+<div class="page" id="tab-gov">
+  <div class="row">
+    <div class="kpi down"><div class="lab">今日异常任务</div><div class="num">19<b> 次</b></div><div class="d"><span class="dot r"></span>当前任务失败率为 5.4%</div></div>
+    <div class="kpi"><div class="lab">今日失败任务</div><div class="num">5<b> 个</b></div><div class="d">5 个失败任务均关联用户账号</div></div>
+    <div class="kpi"><div class="lab">今日长耗时任务</div><div class="num">14<b> 个</b></div><div class="d">单次执行时长超过 5 分钟</div></div>
+    <div class="kpi o"><div class="lab" title="口径：活跃度=近 30 天执行次数，1-9 次为低活跃">低活跃数字员工</div><div class="num">2<b> 名</b></div><div class="d">近 30 天执行次数为 1–9 次</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><div class="panel-title">失败根因分布</div><div class="chart-lg" id="c_gov_err"></div></div>
+    <div class="panel"><div class="panel-title">异常趋势</div><div class="chart-lg" id="c_gov_trend"></div></div>
+  </div>
+  <div class="row">
+    <div class="panel">
+      <div class="panel-title">失败任务清单（近24小时）
+        <input class="input" id="failSearch" placeholder="搜索：运行ID / 任务名称 / 用户账号 / 部门 / 执行员工" style="margin-left:auto">
+      </div>
+      
+      <div class="scroll-x">
+      <table id="failTable">
+        <thead><tr><th>运行ID</th><th>任务名称</th><th>用户账号</th><th>部门</th><th>执行员工</th><th>执行时刻</th><th>错误摘要</th><th>根因</th><th>状态</th><th>治理动作</th><th>优先级</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr data-run="9106059775430" data-task="政策知识源文件" data-account="zhangwei@xwis.cn" data-dept="产品研发部" data-emp="小研" data-time="06-04 03:00" data-err="gateway token 解析失败" data-cause="网关超时" data-status="待处理" data-action="检查网关凭证并轮换 token">
+            <td class="mono">9106059775430</td><td>政策知识源文件</td><td class="mono">zhangwei@xwis.cn</td><td>产品研发部</td><td>小研</td><td>06-04 03:00</td><td>gateway token 解析失败</td><td>网关超时</td><td><span class="badge b-warn">待处理</span></td><td>检查网关凭证 / 轮换 token</td><td><span class="badge b-bad">高</span></td><td><span class="link act-detail">详情</span></td></tr>
+          <tr data-run="9106021873561" data-task="发票批量识别" data-account="chenjing@xwis.cn" data-dept="财务部" data-emp="小财" data-time="今日 02:14" data-err="工具调用超时" data-cause="工具失败" data-status="已失败" data-action="扩容工具超时阈值 / 轮换模型">
+            <td class="mono">9106021873561</td><td>发票批量识别</td><td class="mono">chenjing@xwis.cn</td><td>财务部</td><td>小财</td><td>今日 02:14</td><td>工具调用超时</td><td>工具失败</td><td><span class="badge b-bad">已失败</span></td><td>轮换模型 / 工具扩容</td><td><span class="badge b-bad">高</span></td><td><span class="link act-detail">详情</span></td></tr>
+          <tr data-run="9106010345820" data-task="每日汇率和天气查询" data-account="wangfang@xwis.cn" data-dept="市场销售部" data-emp="小运" data-time="今日 07:00" data-err="模型限流" data-cause="限流" data-status="待处理" data-action="错峰调度 / 提升限流配额">
+            <td class="mono">9106010345820</td><td>每日汇率和天气查询</td><td class="mono">wangfang@xwis.cn</td><td>市场销售部</td><td>小运</td><td>今日 07:00</td><td>模型限流</td><td>限流</td><td><span class="badge b-warn">待处理</span></td><td>错峰调度 / 提升限流配额</td><td><span class="badge b-warn">中</span></td><td><span class="link act-detail">详情</span></td></tr>
+          <tr data-run="9105941123089" data-task="工单分类" data-account="sunqi@xwis.cn" data-dept="综合管理部" data-emp="小云" data-time="昨日 11:20" data-err="权限不足" data-cause="权限错误" data-status="待处理" data-action="修正执行账号权限">
+            <td class="mono">9105941123089</td><td>工单分类</td><td class="mono">sunqi@xwis.cn</td><td>综合管理部</td><td>小云</td><td>昨日 11:20</td><td>权限不足</td><td>权限错误</td><td><span class="badge b-warn">待处理</span></td><td>修正执行账号权限</td><td><span class="badge b-warn">中</span></td><td><span class="link act-detail">详情</span></td></tr>
+          <tr data-run="9105978821147" data-task="竞品价格监控" data-account="wangfang@xwis.cn" data-dept="市场销售部" data-emp="小策" data-time="昨日 14:32" data-err="网络连接中断" data-cause="网关超时" data-status="已处理" data-action="恢复网络后重跑">
+            <td class="mono">9105978821147</td><td>竞品价格监控</td><td class="mono">wangfang@xwis.cn</td><td>市场销售部</td><td>小策</td><td>昨日 14:32</td><td>网络连接中断</td><td>网关超时</td><td><span class="badge b-ok">已处理</span></td><td>恢复网络后重跑</td><td><span class="badge b-idle">低</span></td><td><span class="link act-detail">详情</span></td></tr>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="panel">
+      <div class="panel-title">低活跃度数字员工清单
+        <input class="input" id="lowActSearch" placeholder="搜索：数字员工名称 / 用户账号 / 部门" style="margin-left:auto">
+      </div>
+      
+      <div class="scroll-x">
+        <table id="lowActTable">
+          <thead><tr><th>数字员工名称</th><th>用户账号</th><th>部门</th><th>创建时间</th><th style="text-align:center">近30天执行次数</th><th>活跃度</th></tr></thead>
+          <tbody>
+            <tr><td>小云 · 智能客服</td><td class="mono">sunqi@xwis.cn</td><td>综合管理部</td><td>2026-06-09</td><td style="text-align:center">3</td><td><span class="badge b-warn">低活跃</span></td></tr>
+            <tr><td>小运 · 运营助理</td><td class="mono">wangfang@xwis.cn</td><td>市场销售部</td><td>2026-07-02</td><td style="text-align:center">8</td><td><span class="badge b-warn">低活跃</span></td></tr>
+            <tr><td>小研 · 深度调研</td><td class="mono">zhangwei@xwis.cn</td><td>产品研发部</td><td>2026-02-20</td><td style="text-align:center">0</td><td><span class="badge b-bad">待治理</span></td></tr>
+            <tr><td>小海 · 销售跟单</td><td class="mono">liuyang@xwis.cn</td><td>市场销售部</td><td>2026-04-03</td><td style="text-align:center">0</td><td><span class="badge b-bad">待治理</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 存储台账弹窗 ============ -->
+<div class="modal" id="storeModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="panel-title" style="margin-bottom:0">存储台账管理</div>
+      <span class="modal-sub">部门 → 账号 → 存储使用明细 · 配额使用率 = 存储使用量 ÷ 总配额 50GB，与资源看板口径一致</span>
+      <span class="modal-close" id="storeClose">✕</span>
+    </div>
+    <div class="modal-toolbar">
+      <span class="fb-lab">按部门分类</span>
+      <div class="seg" data-seg="storeDept">
+        <span class="seg-btn active" data-v="all">全部</span>
+        <span class="seg-btn" data-v="rd">产品研发部</span>
+        <span class="seg-btn" data-v="mkt">市场销售部</span>
+        <span class="seg-btn" data-v="fin">财务部</span>
+        <span class="seg-btn" data-v="adm">综合管理部</span>
+      </div>
+      <input class="input" id="storeSearch" placeholder="按用户账号定位…" style="margin-left:auto">
+    </div>
+    <div class="scroll-x">
+    <table id="storeTable">
+      <thead><tr><th>用户账号</th><th>部门</th><th>存储使用量</th><th>配额使用率</th><th>主要占用</th><th>明细</th></tr></thead>
+      <tbody>
+        <tr class="store-row" data-dept="rd" data-account="liming@xwis.cn"><td class="mono">liming@xwis.cn</td><td>产品研发部</td><td>186 MB</td><td>0.36%</td><td>项目文件夹</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">项目文件夹 98 MB · 产物 62 MB · 临时上传 26 MB</td></tr>
+        <tr class="store-row" data-dept="rd" data-account="zhangwei@xwis.cn"><td class="mono">zhangwei@xwis.cn</td><td>产品研发部</td><td>142 MB</td><td>0.28%</td><td>产物</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">产物 60 MB · 项目文件夹 58 MB · 临时上传 24 MB</td></tr>
+        <tr class="store-row" data-dept="mkt" data-account="wangfang@xwis.cn"><td class="mono">wangfang@xwis.cn</td><td>市场销售部</td><td>158 MB</td><td>0.31%</td><td>项目文件夹</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">项目文件夹 84 MB · 产物 52 MB · 临时上传 22 MB</td></tr>
+        <tr class="store-row" data-dept="mkt" data-account="liuyang@xwis.cn"><td class="mono">liuyang@xwis.cn</td><td>市场销售部</td><td>96 MB</td><td>0.19%</td><td>定时任务</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">定时任务 42 MB · 其他 34 MB · 产物 20 MB</td></tr>
+        <tr class="store-row" data-dept="fin" data-account="chenjing@xwis.cn"><td class="mono">chenjing@xwis.cn</td><td>财务部</td><td>121 MB</td><td>0.24%</td><td>项目文件夹</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">项目文件夹 58 MB · 产物 44 MB · 临时上传 19 MB</td></tr>
+        <tr class="store-row" data-dept="adm" data-account="zhaolei@xwis.cn"><td class="mono">zhaolei@xwis.cn</td><td>综合管理部</td><td>88 MB</td><td>0.17%</td><td>产物</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">产物 42 MB · 项目文件夹 28 MB · 临时上传 18 MB</td></tr>
+        <tr class="store-row" data-dept="adm" data-account="sunqi@xwis.cn"><td class="mono">sunqi@xwis.cn</td><td>综合管理部</td><td>58 MB</td><td>0.11%</td><td>临时上传</td><td><span class="link store-toggle">明细</span></td></tr>
+        <tr class="store-detail" style="display:none"><td colspan="6" style="color:var(--text3);background:rgba(0,212,255,.04)">临时上传 26 MB · 项目文件夹 20 MB · 产物 12 MB</td></tr>
+      </tbody>
+      <tfoot><tr><td style="color:var(--text3)">—</td><td style="color:var(--text)">合计</td><td style="color:var(--primary)">849 MB</td><td style="color:var(--primary)">1.7%</td><td style="color:var(--text3)">—</td><td style="color:var(--text3)">—</td></tr></tfoot>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 任务详情弹窗 ============ -->
+<div class="modal" id="taskModal">
+  <div class="modal-box" style="width:min(520px,90vw)">
+    <div class="modal-head">
+      <div class="panel-title" style="margin-bottom:0">任务详情</div>
+      <span class="modal-sub" id="tdCtx">—</span>
+      <span class="modal-close" id="taskClose">✕</span>
+    </div>
+    <div style="padding:30px 16px 26px;text-align:center">
+      <div style="font-size:19px;color:var(--text)">跳转到 <i style="color:var(--primary);font-style:normal;font-weight:600">对应对话界面</i></div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text3)">示意页 · 点击返回后回到看板；实际将跳转至平台「对话」页，定位本次执行对应的对话记录</div>
+      <button class="btn" id="taskBack" style="margin-top:20px">← 返回看板</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 数字员工配置（跳转示意） ============ -->
+<div class="modal" id="cfgModal">
+  <div class="modal-box" style="width:min(520px,90vw)">
+    <div class="modal-head">
+      <div class="panel-title" style="margin-bottom:0">数字员工配置</div>
+      <span class="modal-sub" id="cfgSub">—</span>
+      <span class="modal-close" id="cfgClose">✕</span>
+    </div>
+    <div style="padding:30px 16px 26px;text-align:center">
+      <div style="font-size:19px;color:var(--text)">跳转到 <i style="color:var(--primary);font-style:normal;font-weight:600">数字员工配置</i> 页</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text3)">示意页 · 点击返回后回到看板；实际将跳转至平台「数字员工配置」页（员工 <span id="cfgEmp">—</span>）</div>
+      <button class="btn" id="cfgBack" style="margin-top:20px">← 返回看板</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// clock
+function tick(){var d=new Date(),p=function(n){return n<10?'0'+n:n};document.getElementById('clock').textContent=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())}
+tick();setInterval(tick,1000);
+
+// echarts guard
+var charts={};
+function initChart(id,cfg){
+  var el=document.getElementById(id);
+  if(!el)return;
+  if(typeof echarts==='undefined'){document.getElementById('echartsGhost').style.display='flex';return;}
+  var c=echarts.init(el);
+  c.setOption(cfg);
+  charts[id]=c;
+  return c;
+}
+
+// ---- common styles
+var AX={axisLine:{lineStyle:{color:'#2a3a5e'}},axisLabel:{color:'#8aa0c0'},splitLine:{lineStyle:{color:'rgba(31,43,69,.6)'}}};
+var LEGEND={textStyle:{color:'#8aa0c0'},top:8};
+var PALETTE=['#00d4ff','#7c5cff','#00e396','#ffb547','#ff5470','#38bdf8','#f472b6','#a78bfa'];
+var TIP={backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}};
+
+// ==================== 总览 ====================
+function renderOverview(){
+  initChart('c_trend',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:20,top:44,bottom:28},
+    xAxis:Object.assign({type:'category',data:genDays(30)},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[
+      {name:'自动执行',type:'line',smooth:true,symbol:'none',data:genSer(30,150,260),lineStyle:{width:2.5,color:'#00d4ff'},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(0,212,255,.28)'},{offset:1,color:'rgba(0,212,255,0)'}])}},
+      {name:'手动执行',type:'line',smooth:true,symbol:'none',data:genSer(30,60,110),lineStyle:{width:2.5,color:'#7c5cff'},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(124,92,255,.3)'},{offset:1,color:'rgba(124,92,255,0)'}])}}
+    ]
+  });
+  initChart('c_rate',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:44,top:44,bottom:28},
+    xAxis:Object.assign({type:'category',data:genDays(30)},AX),
+    yAxis:[Object.assign({type:'value',max:100},AX),Object.assign({type:'value'},AX)],
+    series:[
+      {name:'成功率(%)',type:'line',smooth:true,symbol:'none',data:genRate(30,92,98),lineStyle:{width:2.5,color:'#00e396'},areaStyle:{color:'rgba(0,227,150,.12)'}},
+      {name:'异常数',type:'bar',yAxisIndex:1,data:genSer(30,3,22),itemStyle:{color:'#ff5470',borderRadius:[3,3,0,0]}}
+    ]
+  });
+  initChart('c_scene',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:52,right:20,top:20,bottom:28},
+    xAxis:Object.assign({type:'category',data:['数据分析','文档写作','代码助手','深度研究','项目管理','创意设计']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{type:'bar',data:[98,76,65,41,53,23],barWidth:18,itemStyle:{borderRadius:[4,4,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#00d4ff'},{offset:1,color:'#0b4d75'}])}}]
+  });
+  initChart('c_skill',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:90,right:30,top:20,bottom:24},
+    xAxis:Object.assign({type:'value'},AX),
+    yAxis:Object.assign({type:'category',data:['文档分析','数据分析','语义搜索','发票识别','代码助手']},AX),
+    series:[{type:'bar',data:[462,388,352,214,187],barWidth:14,itemStyle:{borderRadius:[0,4,4,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#7c5cff'},{offset:1,color:'#00d4ff'}])}}]
+  });
+  initChart('c_team',{
+    tooltip:{trigger:'item',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    color:['#00e396','#ffb547','#ff5470'],
+    legend:LEGEND,
+    series:[{type:'pie',radius:['55%','78%'],center:['50%','52%'],data:[{name:'活跃',value:10},{name:'低活跃',value:2},{name:'待治理',value:0}],label:{color:'#e6edf7'},labelLine:{lineStyle:{color:'#2a3a5e'}}}]
+  });
+}
+
+// ==================== 组织 ====================
+function renderTeam(){
+  initChart('c_team_growth',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:44,right:20,top:30,bottom:28},
+    xAxis:Object.assign({type:'category',data:['1月','2月','3月','4月','5月','6月','7月']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{name:'数字员工数',type:'line',smooth:true,symbol:'circle',data:[2,3,5,7,9,11,12],lineStyle:{color:'#00d4ff',width:3},itemStyle:{color:'#00d4ff'},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(0,212,255,.25)'},{offset:1,color:'rgba(0,212,255,0)'}])}}]
+  });
+  initChart('c_team_create',{
+    tooltip:{trigger:'item',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    color:['#00d4ff','#7c5cff','#ffb547'],
+    legend:LEGEND,
+    series:[{type:'pie',radius:['45%','72%'],data:[{name:'模板创建',value:7},{name:'对话创建',value:4},{name:'内置/管理员',value:1}],label:{color:'#e6edf7'},labelLine:{lineStyle:{color:'#2a3a5e'}}}]
+  });
+}
+
+// ==================== 任务 ====================
+function renderTask(){
+  initChart('c_task_trend',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:44,top:42,bottom:28},
+    xAxis:Object.assign({type:'category',data:genDays(30)},AX),
+    yAxis:[Object.assign({type:'value'},AX),Object.assign({type:'value',max:100},AX)],
+    series:[
+      {name:'执行量',type:'bar',data:genSer(30,220,340),barWidth:8,itemStyle:{borderRadius:[3,3,0,0],color:'rgba(0,212,255,.55)'}},
+      {name:'成功率(%)',type:'line',yAxisIndex:1,smooth:true,symbol:'none',data:genRate(30,92,98),lineStyle:{color:'#00e396',width:2.5}}
+    ]
+  });
+  initChart('c_task_src',{
+    tooltip:{trigger:'item',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    color:['#00d4ff','#7c5cff'],
+    legend:LEGEND,
+    series:[{type:'pie',radius:['42%','68%'],data:[{name:'自动（定时）',value:72},{name:'手动（对话）',value:28}],label:{color:'#e6edf7',formatter:'{b}\n{d}%'},labelLine:{lineStyle:{color:'#2a3a5e'}}}]
+  });
+  initChart('c_task_load',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:130,right:30,top:20,bottom:24},
+    xAxis:Object.assign({type:'value'},AX),
+    yAxis:Object.assign({type:'category',data:['xwis-R1（产研）','小智（产研）','小财（财务）','小策（市场）','小法（综合）','小码（产研）','噜噜小工（综合）','小云（综合）']},AX),
+    series:[{type:'bar',data:[231,98,35,41,30,12,23,3],barWidth:12,itemStyle:{borderRadius:[0,3,3,0],color:'#7c5cff'}}]
+  });
+  initChart('c_task_dur',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:44,right:20,top:30,bottom:28},
+    xAxis:Object.assign({type:'category',data:['<10s','10-30s','30s-1m','1-3m','3-5m','>5m']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{type:'bar',data:[18,42,27,9,4,1],barWidth:22,itemStyle:{borderRadius:[4,4,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#00e396'},{offset:1,color:'#0b6b4a'}])}}]
+  });
+}
+
+// ==================== 能力 ====================
+function renderSkill(){
+  initChart('c_skill_call',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:110,right:40,top:44,bottom:24},
+    xAxis:Object.assign({type:'value'},AX),
+    yAxis:Object.assign({type:'category',data:['文档分析','数据分析','语义搜索','发票识别','代码助手','项目管理','深度研究','文件整理','周报生成','创意设计']},AX),
+    series:[
+      {name:'技能调用次数',type:'bar',data:[4620,3880,3520,2140,1870,1320,980,760,410,180],barWidth:12,itemStyle:{borderRadius:[0,3,3,0],color:new echarts.graphic.LinearGradient(0,0,1,0,[{offset:0,color:'#7c5cff'},{offset:1,color:'#00d4ff'}])}},
+      {name:'安装数(当前绑定)',type:'bar',data:[42,38,35,29,27,24,18,15,9,3],barWidth:12,itemStyle:{borderRadius:[0,3,3,0],color:'rgba(0,212,255,.25)'}}
+    ]
+  });
+  initChart('c_skill_cat',{
+    tooltip:{trigger:'item',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    color:PALETTE,
+    legend:LEGEND,
+    series:[{type:'pie',radius:['40%','66%'],data:[{name:'数据分析',value:9},{name:'效率工具',value:7},{name:'内容写作',value:6},{name:'研究分析',value:5},{name:'设计',value:3},{name:'项目管理',value:2}],label:{color:'#e6edf7'},labelLine:{lineStyle:{color:'#2a3a5e'}}}]
+  });
+  initChart('c_skill_growth',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:20,top:34,bottom:28},
+    xAxis:Object.assign({type:'category',data:['2月','3月','4月','5月','6月','7月']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[
+      {name:'所有技能',type:'bar',data:[6,8,9,12,11,7],barWidth:14,itemStyle:{borderRadius:[3,3,0,0],color:'#00d4ff'}},
+      {name:'正式上架',type:'line',smooth:true,symbol:'none',data:[2,3,4,5,5,3],lineStyle:{color:'#00e396',width:2.5}}
+    ]
+  });
+}
+
+// ==================== 定时任务 ====================
+function renderAuto(){
+  initChart('c_auto_rate',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:44,top:40,bottom:28},
+    xAxis:Object.assign({type:'category',data:genDays(30)},AX),
+    yAxis:[Object.assign({type:'value',max:100},AX),Object.assign({type:'value'},AX)],
+    series:[
+      {name:'成功率(%)',type:'line',smooth:true,symbol:'none',data:genRate(30,93,99),lineStyle:{color:'#00e396',width:2.5},areaStyle:{color:'rgba(0,227,150,.1)'}},
+      {name:'定时任务执行量',type:'bar',yAxisIndex:1,data:genSer(30,180,320),barWidth:7,itemStyle:{borderRadius:[3,3,0,0],color:'rgba(124,92,255,.5)'}}
+    ]
+  });
+  initChart('c_auto_sched',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:44,right:20,top:30,bottom:28},
+    xAxis:Object.assign({type:'category',data:['0点','2点','4点','6点','8点','10点','12点','14点','16点','18点','20点','22点']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{type:'bar',data:[2,1,1,2,5,6,4,3,2,3,2,1],barWidth:16,itemStyle:{borderRadius:[4,4,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#ffb547'},{offset:1,color:'#8a5a1f'}])}}]
+  });
+}
+
+// ==================== 业务场景 ====================
+function renderBiz(){
+  var scenes=['数据分析','文档写作','代码助手','深度研究','项目管理','创意设计'];
+  initChart('c_biz_dist',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:60,right:20,top:24,bottom:28},
+    xAxis:Object.assign({type:'category',data:scenes},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{type:'bar',data:[2360,1820,1560,1180,980,540],barWidth:30,itemStyle:{borderRadius:[5,5,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#00d4ff'},{offset:1,color:'#1a5f9e'}])},label:{show:true,position:'top',color:'#8aa0c0'}}]
+  });
+  var names=['xwis-R1（内置）','小智','小策','小财','小法','小码','噜噜小工','小云'];
+  var mat=[[12,6,4,0,2,0],[2,3,0,0,1,9],[0,8,1,0,1,3],[1,0,2,4,0,0],[0,0,5,1,2,0],[4,1,0,0,0,5],[2,6,1,2,0,0],[6,0,0,0,0,1]];
+  var big=0;mat.forEach(function(r){r.forEach(function(v){if(v>big)big=v})});
+  initChart('c_biz_mat',{
+    tooltip:{position:'top',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'},formatter:function(p){return p.name+' · '+scenes[p.value[1]]+'<br/>任务量：'+p.value[2]+(p.value[2]===0?'（该场景未使用）':'')}},
+    grid:{left:110,right:20,top:40,bottom:60},
+    xAxis:Object.assign({type:'category',data:scenes,splitArea:{show:false}},AX),
+    yAxis:Object.assign({type:'category',data:names,splitArea:{show:false}},AX),
+    visualMap:{min:0,max:big,inRange:{color:['#0f1729','#1a5f9e','#00d4ff']},orient:'horizontal',left:'center',bottom:0,textStyle:{color:'#8aa0c0'}},
+    series:[{type:'heatmap',data:(function(){var d=[];for(var i=0;i<mat.length;i++)for(var j=0;j<mat[i].length;j++)d.push([j,i,mat[i][j]]);return d})(),label:{show:true,color:'#e6edf7',formatter:function(p){return p.value[2]===0?'0':p.value[2]}}}]
+  });
+  initChart('c_biz_trend',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:20,top:34,bottom:28},
+    xAxis:Object.assign({type:'category',data:['W1','W2','W3','W4','W5','W6','W7','W8','W9','W10','W11','W12']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[
+      {name:'数据分析',type:'line',smooth:true,data:genSer(12,120,220)},
+      {name:'文档写作',type:'line',smooth:true,data:genSer(12,90,190)},
+      {name:'代码助手',type:'line',smooth:true,data:genSer(12,70,160)}
+    ]
+  });
+  initChart('c_biz_entry',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:90,right:30,top:20,bottom:24},
+    xAxis:Object.assign({type:'value'},AX),
+    yAxis:Object.assign({type:'category',data:scenes},AX),
+    series:[{type:'bar',data:[86,64,55,38,42,19],barWidth:13,itemStyle:{borderRadius:[0,3,3,0],color:'#38bdf8'}}]
+  });
+}
+
+// ==================== 知识沉淀数量（累计 / 增量 柱状图） ====================
+var KNOW_MONTHS=['1月','2月','3月','4月','5月','6月','7月'];
+var KNOW_INC=[28,33,41,36,45,49,36];
+var KNOW_CUM=[28,61,102,138,183,232,268];
+function knowMode(){
+  var b=document.querySelector('.seg[data-sync="knowledge"] .seg-btn.active');
+  return b?b.getAttribute('data-v'):'total';
+}
+function knowOption(){
+  var inc=knowMode()==='inc';
+  var data=inc?KNOW_INC:KNOW_CUM;
+  return {
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'},formatter:function(ps){
+      var p=ps[0];
+      return p.name+'<br/>知识沉淀数量（'+(inc?'增量':'累计')+'）：'+p.value+' 条';
+    }},
+    grid:{left:44,right:20,top:34,bottom:28},
+    xAxis:Object.assign({type:'category',data:KNOW_MONTHS},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{
+      name:inc?'知识沉淀数量（增量）':'知识沉淀数量（累计）',
+      type:'bar',
+      data:data,
+      barWidth:22,
+      itemStyle:{borderRadius:[4,4,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#00d4ff'},{offset:1,color:'#1a5f9e'}])},
+      label:{show:true,position:'top',color:'#8aa0c0',fontSize:10,formatter:'{c}'}
+    }]
+  };
+}
+
+// ==================== 产物产出趋势（累计 / 增量 柱状图） ====================
+var ART_MONTHS=['1月','2月','3月','4月','5月','6月','7月'];
+var ART_INC=[2,3,5,7,6,10,8];
+var ART_CUM=[2,5,10,17,23,33,41];
+var ART_KPI={
+  total:{n:'41<b> 个</b>',d:'累计产出 41 个成果，近 30 天新增 18 个'},
+  inc:{n:'18<b> 个</b>',d:'近 30 天新增 · 统计周期内产物个数'}
+};
+function artMode(){
+  var b=document.querySelector('.seg[data-seg="artTrend"] .seg-btn.active');
+  return b?b.getAttribute('data-v'):'total';
+}
+function artOption(){
+  var inc=artMode()==='inc';
+  var data=inc?ART_INC:ART_CUM;
+  return {
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'},formatter:function(ps){
+      var p=ps[0];
+      return p.name+'<br/>产物数量（'+(inc?'增量':'累计')+'）：'+p.value+' 个';
+    }},
+    grid:{left:44,right:20,top:30,bottom:28},
+    xAxis:Object.assign({type:'category',data:ART_MONTHS},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{
+      name:inc?'产物数量（增量）':'产物数量（累计）',
+      type:'bar',
+      data:data,
+      barWidth:22,
+      itemStyle:{borderRadius:[4,4,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#7c5cff'},{offset:1,color:'#3a2a7e'}])},
+      label:{show:true,position:'top',color:'#8aa0c0',fontSize:10,formatter:'{c}'}
+    }]
+  };
+}
+
+// ==================== 资源 ====================
+function renderRes(){
+  initChart('c_know',knowOption());
+  initChart('c_res_store',{
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    grid:{left:44,right:20,top:30,bottom:28},
+    xAxis:Object.assign({type:'category',data:['项目文件夹','临时上传','产物','定时任务','其他']},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[{type:'bar',data:[376,268,142,36,27],barWidth:26,itemStyle:{borderRadius:[5,5,0,0],color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'#00d4ff'},{offset:1,color:'#1a5f9e'}])},markLine:{silent:true,symbol:'none',data:[{yAxis:849}],label:{formatter:'当前用量 849MB',color:'#ffb547',position:'insideEndTop'},lineStyle:{color:'#ffb547',type:'dashed'}}}]
+  });
+  initChart('c_res_art',artOption());
+  initChart('c_res_type',{
+    tooltip:{trigger:'item',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    color:PALETTE,
+    legend:LEGEND,
+    series:[{type:'pie',center:['50%','54%'],radius:['38%','58%'],data:[{name:'表格 xlsx',value:38},{name:'文档 docx/md',value:30},{name:'PDF',value:18},{name:'PPT',value:9},{name:'其他',value:5}],label:{color:'#e6edf7'},labelLine:{lineStyle:{color:'#2a3a5e'}}}]
+  });
+}
+
+// ==================== 治理 ====================
+function renderGov(){
+  initChart('c_gov_err',{
+    tooltip:{trigger:'item',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    color:['#ff5470','#ffb547','#7c5cff','#38bdf8','#8aa0c0'],
+    legend:LEGEND,
+    series:[{type:'pie',radius:['42%','68%'],data:[{name:'网关超时',value:8},{name:'工具调用失败',value:5},{name:'模型限流',value:3},{name:'权限错误',value:2},{name:'其他',value:1}],label:{color:'#e6edf7',formatter:'{b} {d}%'},labelLine:{lineStyle:{color:'#2a3a5e'}}}]
+  });
+  initChart('c_gov_trend',{
+    tooltip:{trigger:'axis',backgroundColor:'#101a30',borderColor:'#2a3a5e',textStyle:{color:'#e6edf7'}},
+    legend:LEGEND,
+    grid:{left:44,right:20,top:34,bottom:28},
+    xAxis:Object.assign({type:'category',data:genDays(30)},AX),
+    yAxis:Object.assign({type:'value'},AX),
+    series:[
+      {name:'失败数',type:'line',smooth:true,symbol:'none',data:genSer(30,3,22),lineStyle:{color:'#ff5470',width:2.5},areaStyle:{color:'rgba(255,84,112,.14)'}},
+      {name:'长耗时(>5min)',type:'line',smooth:true,symbol:'none',data:genSer(30,0,6),lineStyle:{color:'#ffb547',width:2.5}}
+    ]
+  });
+}
+
+// ==================== gen helpers ====================
+function genDays(n){var out=[];var d=new Date();for(var i=n-1;i>=0;i--){var t=new Date(d);t.setDate(d.getDate()-i);out.push((t.getMonth()+1)+'/'+t.getDate())}return out}
+function genSer(n,lo,hi){var out=[],seed=7;for(var i=0;i<n;i++){seed=(seed*9301+49297)%233280;out.push(Math.round(lo+seed/233280*(hi-lo)))}return out}
+function genRate(n,lo,hi){var out=[],seed=13;for(var i=0;i<n;i++){seed=(seed*9301+49297)%233280;out.push(+(lo+seed/233280*(hi-lo)).toFixed(1))}return out}
+
+// renderers per tab
+var renderers={
+  'tab-overview':renderOverview,
+  'tab-team':renderTeam,
+  'tab-task':renderTask,
+  'tab-skill':renderSkill,
+  'tab-auto':renderAuto,
+  'tab-biz':renderBiz,
+  'tab-res':renderRes,
+  'tab-gov':renderGov
+};
+var rendered={};
+
+// tab logic
+function switchTab(el){
+  var tab=el.getAttribute('data-tab');
+  document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active')});
+  el.classList.add('active');
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active')});
+  document.getElementById(tab).classList.add('active');
+  if(!rendered[tab]){renderers[tab]();rendered[tab]=true}
+  resizeAll();
+}
+document.querySelectorAll('.nav-item').forEach(function(n){n.addEventListener('click',function(){switchTab(this)})});
+
+function resizeAll(){
+  if(typeof echarts!=='undefined'){
+    setTimeout(function(){
+      for(var k in charts){try{charts[k].resize()}catch(e){}}
+    },60);
+  }
+}
+window.addEventListener('resize',resizeAll);
+
+// ==================== 部门维度（总览） ====================
+var DEPT={
+  all:{name:'全部部门',ovEmp:'12<b> 名</b>',ovEmpD:'本周新增 2 名，涉及 4 个部门、7 个账号',ovAct:'83.3<b>%</b>',ovActD:'近 30 天有 10 名数字员工执行过任务，占比 83.3%',ovTask:'356<b> 次</b>',ovTaskD:'自动执行 262 次，人工发起 94 次',ovRate:'94.6<b>%</b>',ovRateD:'较上一周期上升 1.2%',ovAbn:'19<b> 次</b>',ovAbnD:'<span class="dot r"></span>较昨日增加 6 次',ovCall:'1,284<b> 次</b>',ovCallD:'统计所选时间范围内的技能调用次数',ovTimer:'18<b>/24</b>',ovTimerD:'当前执行成功率为 96.1%',ovStore:'849<b> MB</b>',ovStoreD:'总配额 50GB，当前占用约 1.7%'},
+  rd:{name:'产品研发部',ovEmp:'4<b> 名</b>',ovEmpD:'本周新增 1 名，当前关联 2 个用户账号',ovAct:'75.0<b>%</b>',ovActD:'4 名数字员工中有 3 名近 30 天执行过任务',ovTask:'168<b> 次</b>',ovTaskD:'自动执行 130 次，人工发起 38 次',ovRate:'95.4<b>%</b>',ovRateD:'近 7 日较上一周期上升 0.8%',ovAbn:'7<b> 次</b>',ovAbnD:'<span class="dot r"></span>较昨日增加 2 次',ovCall:'618<b> 次</b>',ovCallD:'统计所选时间范围内的技能调用次数',ovTimer:'8<b>/10</b>',ovTimerD:'当前执行成功率为 97.2%',ovStore:'328<b> MB</b>',ovStoreD:'总配额 50GB，当前占用约 0.6%'},
+  mkt:{name:'市场销售部',ovEmp:'3<b> 名</b>',ovEmpD:'本周新增 1 名，当前关联 2 个用户账号',ovAct:'66.7<b>%</b>',ovActD:'3 名数字员工中有 2 名近 30 天执行过任务',ovTask:'96<b> 次</b>',ovTaskD:'自动执行 66 次，人工发起 30 次',ovRate:'93.8<b>%</b>',ovRateD:'较上一周期下降 0.4%',ovAbn:'5<b> 次</b>',ovAbnD:'<span class="dot r"></span>较昨日增加 2 次',ovCall:'342<b> 次</b>',ovCallD:'统计所选时间范围内的技能调用次数',ovTimer:'5<b>/7</b>',ovTimerD:'当前执行成功率为 94.5%',ovStore:'254<b> MB</b>',ovStoreD:'总配额 50GB，当前占用约 0.5%'},
+  fin:{name:'财务部',ovEmp:'1<b> 名</b>',ovEmpD:'当前关联 1 个用户账号',ovAct:'100<b>%</b>',ovActD:'当前 1 名数字员工均有任务使用记录',ovTask:'42<b> 次</b>',ovTaskD:'自动执行 32 次，人工发起 10 次',ovRate:'96.2<b>%</b>',ovRateD:'近 7 日较上一周期上升 1.5%',ovAbn:'2<b> 次</b>',ovAbnD:'<span class="dot r"></span>与昨日持平',ovCall:'148<b> 次</b>',ovCallD:'统计所选时间范围内的技能调用次数',ovTimer:'2<b>/2</b>',ovTimerD:'当前执行成功率为 98.0%',ovStore:'121<b> MB</b>',ovStoreD:'总配额 50GB，当前占用约 0.2%'},
+  adm:{name:'综合管理部',ovEmp:'4<b> 名</b>',ovEmpD:'本周暂无新增，当前关联 2 个用户账号',ovAct:'100<b>%</b>',ovActD:'当前 4 名数字员工均有任务使用记录',ovTask:'50<b> 次</b>',ovTaskD:'自动执行 34 次，人工发起 16 次',ovRate:'94.1<b>%</b>',ovRateD:'近 7 日较上一周期上升 0.6%',ovAbn:'5<b> 次</b>',ovAbnD:'<span class="dot r"></span>较昨日增加 1 次',ovCall:'176<b> 次</b>',ovCallD:'统计所选时间范围内的技能调用次数',ovTimer:'3<b>/5</b>',ovTimerD:'当前执行成功率为 95.3%',ovStore:'146<b> MB</b>',ovStoreD:'总配额 50GB，当前占用约 0.3%'}
+};
+function applyDept(v){
+  var d=DEPT[v];if(!d)return;
+  ['ovEmp','ovEmpD','ovAct','ovActD','ovTask','ovTaskD','ovRate','ovRateD','ovAbn','ovAbnD','ovCall','ovCallD','ovTimer','ovTimerD','ovStore','ovStoreD'].forEach(function(k){
+    var el=document.getElementById(k);if(el)el.innerHTML=d[k];
+  });
+  var note=document.getElementById('deptNote');
+  if(note)note.textContent='展示所选部门的相关指标数据';
+}
+
+// ==================== 时间维度切换 ====================
+var SEG_DATA={
+  taskExec:{
+    total:{n:'128,900<b> 次</b>',d:'平台累计 · 按执行记录聚合'},
+    year:{n:'96,400<b> 次</b>',d:'近 365 天 · 日均 264'},
+    month:{n:'8,910<b> 次</b>',d:'近 30 天任务执行日均约 297 次'}
+  },
+  skillCall:{
+    total:{n:'712,500<b> 次</b>',d:'平台累计调用 712,500 次'},
+    year:{n:'441,800<b> 次</b>',d:'近 365 天累计调用 441,800 次，可用于观察年度使用情况'},
+    month:{n:'36,820<b> 次</b>',d:'近 30 天累计调用 36,820 次，日均约 1,227 次'}
+  },
+  secEval:{
+    total:{n:'99.6<b>%</b>',d:'累计完成 1,247 项安全检查，其中 1,242 项通过 · 越权风险 0'},
+    year:{n:'99.8<b>%</b>',d:'近 365 天 · 评测 986 项 · 未通过 2 项已整改'},
+    month:{n:'97.2<b>%</b>',d:'近 30 天 · 1 项高风险内容复核中'}
+  },
+  knowledge:{
+    total:{n:'268<b> 条</b>',d:'累计沉淀 268 条知识内容条数'},
+    inc:{n:'36<b> 条</b>',d:'近 30 天新增 · 统计周期内增量条数'}
+  }
+};
+function setSegValue(name,v){
+  var cfg=SEG_DATA[name];if(!cfg||!cfg[v])return;
+  if(name==='taskExec'){document.getElementById('kExec').innerHTML=cfg[v].n;document.getElementById('kExecD').textContent=cfg[v].d;}
+  if(name==='skillCall'){document.getElementById('kCall').innerHTML=cfg[v].n;document.getElementById('kCallD').textContent=cfg[v].d;}
+  if(name==='secEval'){document.getElementById('kSec').innerHTML=cfg[v].n;document.getElementById('kSecD').textContent=cfg[v].d;}
+  if(name==='knowledge'){
+    document.getElementById('kKnow').innerHTML=cfg[v].n;document.getElementById('kKnowD').textContent=cfg[v].d;
+    document.getElementById('pKnow').innerHTML=cfg[v].n;document.getElementById('pKnowD').textContent=cfg[v].d;
+    if(charts['c_know'])charts['c_know'].setOption(knowOption(),true);
+  }
+}
+
+// store modal filter state
+var storeDept='all';
+function filterStore(){
+  var q=(document.getElementById('storeSearch').value||'').trim().toLowerCase();
+  var rows=document.querySelectorAll('#storeTable .store-row');
+  var sumMb=0;
+  rows.forEach(function(tr){
+    var okDept=(storeDept==='all'||tr.getAttribute('data-dept')===storeDept);
+    var okQ=(!q||tr.getAttribute('data-account').toLowerCase().indexOf(q)>=0||tr.cells[1].textContent.toLowerCase().indexOf(q)>=0);
+    var show=okDept&&okQ;
+    tr.style.display=show?'':'none';
+    var det=tr.nextElementSibling;
+    if(det&&det.classList.contains('store-detail')){
+      det.style.display=(show&&det.getAttribute('data-open')==='1')?'':'none';
+      if(!show)det.setAttribute('data-open','0');
+    }
+    if(show)sumMb+=(parseFloat(tr.cells[2].textContent)||0);
+  });
+  var foot=document.querySelector('#storeTable tfoot tr');
+  if(foot){
+    foot.cells[0].textContent='—';
+    foot.cells[1].textContent=(storeDept==='all'?'合计':((DEPT[storeDept]?DEPT[storeDept].name:'')+'小计'));
+    foot.cells[2].textContent=sumMb+' MB';
+    foot.cells[3].textContent=(sumMb/51200*100).toFixed(1)+'%';
+    foot.cells[4].textContent='—';
+    foot.cells[5].textContent='—';
+  }
+}
+
+// ==================== seg click（折叠式下拉） ====================
+var SEG_HANDLERS={
+  dept:function(v){applyDept(v)},
+  taskExec:function(v){setSegValue('taskExec',v)},
+  skillCall:function(v){setSegValue('skillCall',v)},
+  secEval:function(v){setSegValue('secEval',v)},
+  knowledge:function(v){setSegValue('knowledge',v)},
+  artTrend:function(v){
+    var cfg=ART_KPI[v];if(cfg){
+      document.getElementById('kArt').innerHTML=cfg.n;
+      document.getElementById('kArtD').textContent=cfg.d;
+    }
+    if(charts['c_res_art'])charts['c_res_art'].setOption(artOption(),true);
+  },
+  storeDept:function(v){storeDept=v;filterStore()}
+};
+function segLabel(seg){
+  var t=seg.querySelector('.seg-trigger .seg-lab');if(!t)return;
+  var a=seg.querySelector('.seg-btn.active');if(a)t.textContent=a.textContent;
+}
+function closeAllSegs(except){
+  document.querySelectorAll('.seg.open').forEach(function(s){if(s!==except)s.classList.remove('open')});
+}
+function segPlace(seg){
+  var menu=seg.querySelector('.seg-menu');if(!menu)return;
+  menu.style.left='0';menu.style.right='auto';menu.style.top='calc(100% + 6px)';menu.style.bottom='auto';
+  var w=menu.offsetWidth,h=menu.offsetHeight,r=seg.getBoundingClientRect();
+  if(r.left+w>window.innerWidth-10){menu.style.left='auto';menu.style.right='0'}
+  if(r.top+h+14>window.innerHeight&&r.top-h-14>8){menu.style.top='auto';menu.style.bottom='calc(100% + 6px)'}
+}
+function segToggle(seg){
+  var open=seg.classList.contains('open');
+  closeAllSegs();
+  if(open){seg.classList.remove('open')}
+  else{seg.classList.add('open');segPlace(seg)}
+}
+// build dropdown structure (trigger + menu) for every seg
+Array.prototype.slice.call(document.querySelectorAll('.seg')).forEach(function(seg){
+  var menu=document.createElement('div');menu.className='seg-menu';
+  Array.prototype.slice.call(seg.querySelectorAll('.seg-btn')).forEach(function(b){menu.appendChild(b)});
+  var trigger=document.createElement('button');trigger.type='button';trigger.className='seg-trigger';
+  var lab=document.createElement('span');lab.className='seg-lab';
+  var caret=document.createElement('span');caret.className='seg-caret';caret.textContent='▾';
+  trigger.appendChild(lab);trigger.appendChild(caret);
+  seg.appendChild(trigger);seg.appendChild(menu);
+  segLabel(seg);seg.classList.add('ready');
+});
+document.addEventListener('click',function(e){
+  var cs=e.target.closest?e.target.closest.bind(e.target):null;
+  var t=cs?cs('.seg-trigger'):null;
+  if(t){segToggle(t.closest('.seg'));return}
+  var b=cs?cs('.seg-btn'):null;
+  if(b){
+    var seg=b.closest('.seg');if(!seg)return;
+    var val=b.getAttribute('data-v');
+    seg.querySelectorAll('.seg-btn').forEach(function(x){x.classList.remove('active')});
+    b.classList.add('active');segLabel(seg);
+    var sync=seg.getAttribute('data-sync');
+    if(sync){
+      document.querySelectorAll('.seg[data-sync="'+sync+'"]').forEach(function(s){
+        s.querySelectorAll('.seg-btn').forEach(function(x){x.classList.toggle('active',x.getAttribute('data-v')===val)});
+        segLabel(s);s.classList.remove('open');
+      });
+    }
+    seg.classList.remove('open');
+    var name=seg.getAttribute('data-seg');
+    if(SEG_HANDLERS[name])SEG_HANDLERS[name](val);
+    return;
+  }
+  if(cs&&cs('.seg-menu'))return;
+  closeAllSegs();
+});
+window.addEventListener('resize',function(){closeAllSegs()});
+window.addEventListener('scroll',function(){closeAllSegs()},true);
+
+// ==================== 台账排序 ====================
+var STATUS_RANK={'运行中':1,'部分失败':2,'已暂停':3};
+function bindSort(tableId){
+  var table=document.getElementById(tableId);
+  if(!table)return;
+  table.querySelectorAll('th.sortable').forEach(function(th){
+    th.addEventListener('click',function(){
+      var idx=parseInt(th.getAttribute('data-col'),10);
+      var type=th.getAttribute('data-type')||'text';
+      var cur=th.classList.contains('asc')?'asc':(th.classList.contains('desc')?'desc':null);
+      var next=cur==='asc'?'desc':'asc';
+      table.querySelectorAll('th').forEach(function(x){x.classList.remove('asc','desc')});
+      th.classList.add(next);
+      var mul=next==='asc'?1:-1;
+      var tb=table.querySelector('tbody');
+      var rows=Array.prototype.slice.call(tb.rows);
+      rows.sort(function(a,b){
+        var av=a.cells[idx]?a.cells[idx].textContent.trim():'';
+        var bv=b.cells[idx]?b.cells[idx].textContent.trim():'';
+        if(type==='num'){
+          var an=parseFloat(av.replace(/[^0-9.]/g,''))||0;
+          var bn=parseFloat(bv.replace(/[^0-9.]/g,''))||0;
+          return (an-bn)*mul;
+        }
+        if(type==='status'){
+          return ((STATUS_RANK[av]||9)-(STATUS_RANK[bv]||9))*mul;
+        }
+        return av.localeCompare(bv,'zh-Hans-CN')*mul;
+      });
+      rows.forEach(function(r){tb.appendChild(r)});
+    });
+  });
+}
+bindSort('ledgerTable');
+bindSort('teamLedger');
+
+// ==================== 台账搜索 ====================
+var ledgerSearch=document.getElementById('ledgerSearch');
+if(ledgerSearch){
+  ledgerSearch.addEventListener('input',function(){
+    var q=this.value.trim().toLowerCase();
+    var rows=document.querySelectorAll('#ledgerTable tbody tr');
+    rows.forEach(function(tr){
+      var txt=(tr.cells[0].textContent+' '+tr.cells[1].textContent+' '+tr.cells[2].textContent+' '+tr.cells[3].textContent).toLowerCase();
+      tr.style.display=(!q||txt.indexOf(q)>=0)?'':'none';
+    });
+  });
+}
+
+// ==================== 组织与数字员工台账 搜索 ====================
+var teamSearch=document.getElementById('teamSearch');
+if(teamSearch){
+  teamSearch.addEventListener('input',function(){
+    var q=this.value.trim().toLowerCase();
+    var rows=document.querySelectorAll('#teamLedger tbody tr');
+    rows.forEach(function(tr){
+      var txt=(tr.cells[0].textContent+' '+tr.cells[1].textContent+' '+tr.cells[2].textContent).toLowerCase();
+      tr.style.display=(!q||txt.indexOf(q)>=0)?'':'none';
+    });
+  });
+}
+
+// ==================== 失败任务清单搜索 ====================
+var failSearch=document.getElementById('failSearch');
+if(failSearch){
+  failSearch.addEventListener('input',function(){
+    var q=this.value.trim().toLowerCase();
+    var rows=document.querySelectorAll('#failTable tbody tr');
+    rows.forEach(function(tr){
+      var txt='';
+      for(var i=0;i<5&&i<tr.cells.length;i++){txt+=' '+tr.cells[i].textContent}
+      txt=txt.toLowerCase();
+      tr.style.display=(!q||txt.indexOf(q)>=0)?'':'none';
+    });
+  });
+}
+
+// ==================== 低活跃度清单搜索 ====================
+var lowActSearch=document.getElementById('lowActSearch');
+if(lowActSearch){
+  lowActSearch.addEventListener('input',function(){
+    var q=this.value.trim().toLowerCase();
+    var rows=document.querySelectorAll('#lowActTable tbody tr');
+    rows.forEach(function(tr){
+      var txt=(tr.cells[0].textContent+' '+tr.cells[1].textContent+' '+tr.cells[2].textContent).toLowerCase();
+      tr.style.display=(!q||txt.indexOf(q)>=0)?'':'none';
+    });
+  });
+}
+
+// ==================== 存储台账弹窗 ====================
+var storeModal=document.getElementById('storeModal');
+document.getElementById('btnStore').addEventListener('click',function(){storeModal.classList.add('open');filterStore();});
+document.getElementById('storeClose').addEventListener('click',function(){storeModal.classList.remove('open')});
+storeModal.addEventListener('click',function(e){if(e.target===storeModal)storeModal.classList.remove('open')});
+document.getElementById('storeSearch').addEventListener('input',filterStore);
+document.querySelectorAll('#storeTable .store-toggle').forEach(function(t){
+  t.addEventListener('click',function(){
+    var det=t.closest('tr').nextElementSibling;
+    if(!det)return;
+    var open=det.getAttribute('data-open')==='1';
+    det.setAttribute('data-open',open?'0':'1');
+    det.style.display=open?'none':'';
+  });
+});
+
+// ==================== 治理：失败任务清单 ====================
+document.querySelectorAll('#failTable tbody tr').forEach(function(tr){
+  tr.addEventListener('click',function(e){
+    if(e.target.classList&&e.target.classList.contains('act-detail'))return;
+    document.querySelectorAll('#failTable tbody tr').forEach(function(x){x.classList.toggle('selected',x===tr)});
+  });
+});
+
+// ==================== 任务详情 ====================
+var taskModal=document.getElementById('taskModal');
+function openTaskDetail(row){
+  var run=row.getAttribute('data-run')||'—';
+  var task=row.getAttribute('data-task')||'—';
+  var acc=row.getAttribute('data-account')||'—';
+  var emp=row.getAttribute('data-emp')||'—';
+  document.getElementById('tdCtx').textContent=run+' · '+task+' · '+acc+(emp!=="—"&&emp?" · "+emp:"");
+  taskModal.classList.add('open');
+}
+document.addEventListener('click',function(e){
+  var el=e.target;
+  if(el.classList&&el.classList.contains('act-detail')){
+    var row=el.closest('tr');
+    if(row)openTaskDetail(row);
+  }
+  if(el.classList&&el.classList.contains('cfg-detail')){
+    var row=el.closest('tr');
+    if(row)openCfgPage(row);
+  }
+});
+document.getElementById('taskClose').addEventListener('click',function(){taskModal.classList.remove('open')});
+document.getElementById('taskBack').addEventListener('click',function(){taskModal.classList.remove('open')});
+taskModal.addEventListener('click',function(e){if(e.target===taskModal)taskModal.classList.remove('open')});
+
+// 数字员工配置页（跳转示意）
+var cfgModal=document.getElementById('cfgModal');
+function openCfgPage(row){
+  var emp=row.cells[0]?row.cells[0].textContent.trim():'—';
+  var dept=row.cells[1]?row.cells[1].textContent.trim():'—';
+  var acc=row.cells[2]?row.cells[2].textContent.trim():'—';
+  document.getElementById('cfgSub').textContent=emp+' · '+dept;
+  document.getElementById('cfgEmp').textContent=emp+'（'+acc+'）';
+  cfgModal.classList.add('open');
+}
+document.getElementById('cfgClose').addEventListener('click',function(){cfgModal.classList.remove('open')});
+document.getElementById('cfgBack').addEventListener('click',function(){cfgModal.classList.remove('open')});
+cfgModal.addEventListener('click',function(e){if(e.target===cfgModal)cfgModal.classList.remove('open')});
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){taskModal.classList.remove('open');storeModal.classList.remove('open');cfgModal.classList.remove('open');}
+});
+
+// init first tab
+renderOverview();
+rendered['tab-overview']=true;
+</script>
+</body>
+</html>
